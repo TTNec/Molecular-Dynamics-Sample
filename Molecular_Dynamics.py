@@ -68,8 +68,8 @@ def lennard_jones_force(sigma, epsilon, x, rd):
     '''
     pref = 4*sigma
     
-    rep_force = 12*x * epsilon**12/((rd**12)**7)
-    attrat_force = -6*x * epsilon**6/((rd**12)**4)
+    rep_force = 12*x * epsilon**12/((rd**2)**7)
+    attrat_force = -6*x * epsilon**6/((rd**2)**4)
     
     return pref * (rep_force + attrat_force)
     
@@ -80,7 +80,7 @@ def grav_force(m):
     '''
     g =  9.80665
     
-    return -m*g
+    return -m*g*0
 
 def regular_grid(r0, space, L0):
     ''' Create a regular grid of len(r0) points with distance 'space' in 
@@ -109,14 +109,14 @@ def plot_position(rt, x1, x2, y1,y2, t):
     (y1,y2) = start and end box along y
     '''
     
-    plt.figure(figsize=(16, 8))
+    plt.figure(figsize=(8, 8))
     ax = plt.gca()
     xr = rt[:,0]
     yr = rt[:,1]
     ax.scatter(xr, yr, label = 'Time {:}'.format(t))
     ax.legend(loc='upper left')
     plt.xlim(x1, x2)
-    plt.ylim(y1, y2)
+    plt.ylim(y1, 4*y2)
 
 def calculate_T(N, dim, M, v):
     ''' Calculate temperature thorugh the system kinetic energy
@@ -145,25 +145,45 @@ def force_i(r, i, sigma, epsilon, M, t):
     x = x-coord position vector
     y = y-coord position vector
     '''
-    
+    cutoff_radius = 10*epsilon
     fix = 0
     fiy = 0
     
+    if t == 0:
+        print('Calc force on Particle', i)
     for j in range(len(r[:, 0, 0])):
+        if t == 0:
+            print('by Particle', j)
         if i != j:
             rd = distance_2points(r[j,:,t], r[i,:,t])
-            x = r[i,0,t] - r[j,0,t]
-            y = r[i,1,t] - r[j,1,t]
-            fix += lennard_jones_force(sigma, epsilon, x, rd)
-            fiy += lennard_jones_force(sigma, epsilon, y, rd)
-    
+            if t == 0:
+                print(j, i, 'Distance: ', rd)
+                print('Cutoff: ', cutoff_radius)
+            if rd < cutoff_radius:
+                x = r[i,0,t] - r[j,0,t]
+                y = r[i,1,t] - r[j,1,t]
+                fix += lennard_jones_force(sigma, epsilon, x, rd)
+                fiy += lennard_jones_force(sigma, epsilon, y, rd)
+            else:
+                fix += 0
+                fiy += 0
+            
+            print('Force on x: ', fix)
+            print('Force on y: ', fiy)
     fiy = fiy + grav_force(M)
 
     return fix, fiy    
     
-def system_time_evol(r, v, time, sigma, epsilon, M):
+def system_time_evol(r, v, time, sigma, epsilon, M, L):
     ''' Mechanic time evolution of the system.
     Calls velocity verlet algorithm
+    
+    r = positions for every particle at every time
+    v = velocities for every particle at every time
+    
+    sigma, epsilon = LJ parameters
+    M = particles mass
+    L = box lenght
     '''
     fi = np.zeros(r.shape)
     dt = time[1]-time[0]
@@ -171,16 +191,30 @@ def system_time_evol(r, v, time, sigma, epsilon, M):
         fi[i, 0, 0], fi[i, 1, 0] = force_i(r, i, sigma, epsilon, M, 0)
     for t in range(1, len(time)):
         for i in range(len(r[:,0,0])):
-           
+            refl_ix, refl_iy = False, False
             r[i, 0, t] = (r[i,0,t-1] + v[i,0,t-1]*dt +
                             0.5 * fi[i, 0, t-1] * dt**2)
             r[i, 1, t] = (r[i,1,t-1] + v[i,1,t-1]*dt +
                             0.5 * fi[i, 1, t-1] * dt**2)
+            if (r[i, 0, t] < 0): 
+                refl_ix = True
+                r[i, 0, t] = reflect_r(r[i,0,t], 0) 
+            elif (r[i,0,t] > L):
+                refl_ix = True
+                r[i, 0, t] = reflect_r(r[i,0,t], L) 
+            if (r[i, 1, t] < 0):
+                refl_iy = True
+                r[i, 1, t] = reflect_r(r[i,1,t], 0)  
+                
             fi[i, 0, t], fi[i, 1, t] = force_i(r, i, sigma, epsilon, M, t)
             v[i, 0, t] = (v[i,0,t-1] + 
                             0.5*(fi[i, 0, t-1] + fi[i, 0, t])*dt)
             v[i, 1, t] = (v[i,1,t-1] + 
                             0.5*(fi[i, 1, t-1] + fi[i, 1, t])*dt)               
+            if refl_ix:
+                v[i, 0, t] = - v[i, 0, t]
+            if refl_iy:
+                v[i, 1, t] = - v[i, 1, t]
             
     return r, v, fi  
     
@@ -190,12 +224,12 @@ if __name__ == '__main__':
     
     # Simulation box definition
     
-    L = 100*Angstrom2Bohr # Bohr
+    L = 30
     dim_box = 2
     
-    N = 4
+    N = 2
 
-    time = np.linspace(1, 1, 10)
+    time = np.linspace(1, 10, 10)
     dt = time[1]-time[0]
     
     r = np.zeros((N, dim_box, len(time))) # Particle, dimension, time
@@ -206,16 +240,17 @@ if __name__ == '__main__':
     sigma = 4.10*Angstrom2Bohr # Bohg
     epsilon = 1.77*kJmol2Hartree # Hartree
     M = 131*uma2me # electron masses
+    part_dist = sigma
     '''
     # test values
     sigma, epsilon, M = 1, 1, 1
-    part_dist = epsilon*2**(1/6)
+    part_dist = 2*epsilon*2**(1/6)
     
     # Create intial condition
-    part_dist = 30 # Angstrom 
+    #part_dist = 30 # Angstrom 
     r0 = np.zeros((N, dim_box))  
-    r0 = regular_grid(r0, sigma, part_dist)#*Angstrom2Bohr)
-    v0 = np.random.rand(N, dim_box)#*10e-6
+    r0 = regular_grid(r0, part_dist, 10)
+    v0 = 0*np.random.rand(N, dim_box)
     
     
     for i in range(len(r[:,0,0])):
@@ -228,9 +263,9 @@ if __name__ == '__main__':
     T = np.zeros(len(time))
     T[0] = calculate_T(N, dim_box, M, v[:, :, 0])
     fix, fiy = force_i(r, 0, sigma, epsilon, M, 0)
-    r, v, forces = system_time_evol(r,v, time, sigma, epsilon, M)
+    r, v, forces = system_time_evol(r, v, time, sigma, epsilon, M, L)
     
-    plot_position(r[:,:,4], 0, L, 0, L, 0)
+    plot_position(r[:,:,-1], 0, L, 0, L, 0)
         
         
    
