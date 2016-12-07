@@ -149,16 +149,19 @@ def force_i(r, i, sigma, epsilon, M, t):
     fix = 0
     fiy = 0
     
-    if t == 0:
-        print('Calc force on Particle', i)
+    print('At time: {}:'.format(t))
+    print('Calc force on Particle', i)
+    print('Position particle {}: \n ({}, {})'
+          .format(i, r[i, 0, t], r[i, 1, t]))
     for j in range(len(r[:, 0, 0])):
-        if t == 0:
-            print('by Particle', j)
+        
         if i != j:
+            print('by Particle', j)
+            print('Position particle {}: \n ({}, {})'
+                  .format(j, r[j, 0, t], r[j, 1, t]))
             rd = distance_2points(r[j,:,t], r[i,:,t])
-            if t == 0:
-                print(j, i, 'Distance: ', rd)
-                print('Cutoff: ', cutoff_radius)
+            print(j, i, 'Distance: ', rd)
+            print('Cutoff: ', cutoff_radius)
             if rd < cutoff_radius:
                 x = r[i,0,t] - r[j,0,t]
                 y = r[i,1,t] - r[j,1,t]
@@ -168,10 +171,11 @@ def force_i(r, i, sigma, epsilon, M, t):
                 fix += 0
                 fiy += 0
             
-            print('Force on x: ', fix)
-            print('Force on y: ', fiy)
+            
     fiy = fiy + grav_force(M)
-
+    print('Force on x: ', fix)
+    print('Force on y: ', fiy)
+    print('---------------------------')
     return fix, fiy    
     
 def system_time_evol(r, v, time, sigma, epsilon, M, L):
@@ -187,9 +191,15 @@ def system_time_evol(r, v, time, sigma, epsilon, M, L):
     '''
     fi = np.zeros(r.shape)
     dt = time[1]-time[0]
+    # Initialize Forces at time 0
+    print('---Force initilization---')
     for i in range(len(r[:,0,0])):
+        print('For Particle {}'.format(i))
         fi[i, 0, 0], fi[i, 1, 0] = force_i(r, i, sigma, epsilon, M, 0)
+    print('---END Force initilization---')    
+    # Time evolution
     for t in range(1, len(time)):
+        # Calculate positions
         for i in range(len(r[:,0,0])):
             refl_ix, refl_iy = False, False
             r[i, 0, t] = (r[i,0,t-1] + v[i,0,t-1]*dt +
@@ -204,9 +214,14 @@ def system_time_evol(r, v, time, sigma, epsilon, M, L):
                 r[i, 0, t] = reflect_r(r[i,0,t], L) 
             if (r[i, 1, t] < 0):
                 refl_iy = True
-                r[i, 1, t] = reflect_r(r[i,1,t], 0)  
+                r[i, 1, t] = reflect_r(r[i,1,t], 0) 
                 
+        # Update forces
+        for i in range(len(r[:,0,0])):
             fi[i, 0, t], fi[i, 1, t] = force_i(r, i, sigma, epsilon, M, t)
+        
+        # Calculate velocities
+        for i  in range(len(r[:,0,0])):
             v[i, 0, t] = (v[i,0,t-1] + 
                             0.5*(fi[i, 0, t-1] + fi[i, 0, t])*dt)
             v[i, 1, t] = (v[i,1,t-1] + 
@@ -262,7 +277,7 @@ if __name__ == '__main__':
     plot_position(r[:,:,0], 0, L, 0, L, 0)
     T = np.zeros(len(time))
     T[0] = calculate_T(N, dim_box, M, v[:, :, 0])
-    fix, fiy = force_i(r, 0, sigma, epsilon, M, 0)
+    #fix, fiy = force_i(r, 0, sigma, epsilon, M, 0)
     r, v, forces = system_time_evol(r, v, time, sigma, epsilon, M, L)
     
     plot_position(r[:,:,-1], 0, L, 0, L, 0)
