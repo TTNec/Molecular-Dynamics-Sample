@@ -78,9 +78,9 @@ def grav_force(m):
     
     m = particle mass
     '''
-    g =  9.80665
+    g =  9.80665e-1
     
-    return -m*g*0
+    return -m*g
 
 def regular_grid(r0, space, L0):
     ''' Create a regular grid of len(r0) points with distance 'space' in 
@@ -149,19 +149,25 @@ def force_i(r, i, sigma, epsilon, M, t):
     fix = 0
     fiy = 0
     
+    '''
     print('At time: {}:'.format(t))
     print('Calc force on Particle', i)
     print('Position particle {}: \n ({}, {})'
           .format(i, r[i, 0, t], r[i, 1, t]))
+    '''
     for j in range(len(r[:, 0, 0])):
         
         if i != j:
+            '''
             print('by Particle', j)
             print('Position particle {}: \n ({}, {})'
                   .format(j, r[j, 0, t], r[j, 1, t]))
+            '''
             rd = distance_2points(r[j,:,t], r[i,:,t])
+            '''
             print(j, i, 'Distance: ', rd)
             print('Cutoff: ', cutoff_radius)
+            '''
             if rd < cutoff_radius:
                 x = r[i,0,t] - r[j,0,t]
                 y = r[i,1,t] - r[j,1,t]
@@ -173,12 +179,14 @@ def force_i(r, i, sigma, epsilon, M, t):
             
             
     fiy = fiy + grav_force(M)
+    '''
     print('Force on x: ', fix)
     print('Force on y: ', fiy)
     print('---------------------------')
+    '''
     return fix, fiy    
     
-def system_time_evol(r, v, time, sigma, epsilon, M, L):
+def system_time_evol(r, v, time, sigma, epsilon, M, L, dt):
     ''' Mechanic time evolution of the system.
     Calls velocity verlet algorithm
     
@@ -190,13 +198,13 @@ def system_time_evol(r, v, time, sigma, epsilon, M, L):
     L = box lenght
     '''
     fi = np.zeros(r.shape)
-    dt = time[1]-time[0]
+    
     # Initialize Forces at time 0
-    print('---Force initilization---')
+    #print('---Force initilization---')
     for i in range(len(r[:,0,0])):
-        print('For Particle {}'.format(i))
+        #print('For Particle {}'.format(i))
         fi[i, 0, 0], fi[i, 1, 0] = force_i(r, i, sigma, epsilon, M, 0)
-    print('---END Force initilization---')    
+    #print('---END Force initilization---')    
     # Time evolution
     for t in range(1, len(time)):
         # Calculate positions
@@ -242,10 +250,13 @@ if __name__ == '__main__':
     L = 30
     dim_box = 2
     
-    N = 2
+    N = 100
 
-    time = np.linspace(1, 10, 10)
-    dt = time[1]-time[0]
+    dt = 0.01
+    time_i = 0
+    time_f = 10
+    
+    time = np.arange(time_i, time_f, dt)
     
     r = np.zeros((N, dim_box, len(time))) # Particle, dimension, time
     v = np.zeros((N, dim_box, len(time)))
@@ -278,7 +289,7 @@ if __name__ == '__main__':
     T = np.zeros(len(time))
     T[0] = calculate_T(N, dim_box, M, v[:, :, 0])
     #fix, fiy = force_i(r, 0, sigma, epsilon, M, 0)
-    r, v, forces = system_time_evol(r, v, time, sigma, epsilon, M, L)
+    r, v, forces = system_time_evol(r, v, time, sigma, epsilon, M, L, dt)
     
     plot_position(r[:,:,-1], 0, L, 0, L, 0)
         
